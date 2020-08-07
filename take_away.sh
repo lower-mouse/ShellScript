@@ -6,6 +6,7 @@
 g_all_files=""
 g_all_need_backup_files=""
 g_backup_dir=".backup"
+g_extra_suffix="h hh c cpp"
 
 g_script='
 function fchange_suffix()
@@ -83,6 +84,22 @@ function fextra_suffix()
 	done
 }
 
+function is_extra_suffix()
+{
+	if [ $# -eq 0 -o "$1" = '' ]; then
+		return -1;
+	fi
+
+	for suffix in ${g_extra_suffix}
+	do
+		if [ $1 = ${suffix} ];then
+			return 1;
+		fi
+	done
+
+	return 0;
+}
+
 function fcopy_target()
 {
 	if [ $# -eq 0 -o "$1" = '' ]; then
@@ -91,6 +108,10 @@ function fcopy_target()
 	
 	for file in $1
 	do
+		if [ -d ${file} ]; then
+			continue;
+		fi
+		
 		tmpfile=${file#*/} #去除目录前缀 比如 ./
 		dirpath=$(dirname $tmpfile)			  #提取路径
 		filename=$(basename ${tmpfile})		  #提取文件名
@@ -98,14 +119,24 @@ function fcopy_target()
 			mkdir -p $g_backup_dir/$dirpath    #创建目录
 		fi
 		
-		
 		file_presuffix=${filename%.*}	#提取文件前缀
 		file_suffix=${filename##*.}     #提取文件后缀
-		outfile=${g_backup_dir}/${dirpath}/"${file_presuffix}.__${file_suffix}"
-		
-		if [ ${outfile} -ot ${file} ]; then   #备份文件比当前文件要老， 或者备份文件不存在
-			cat ${file} > ${outfile}
-			echo "cat ${file} > ${outfile}"
+
+		is_extra_suffix ${file_suffix}
+		if [ $? -eq 0 ];then
+			outfile=${g_backup_dir}/${dirpath}/${filename}
+			cp ${file} ${outfile}
+		else		
+			if [ ${file_presuffix} = ${file_suffix} ];then
+				outfile=${g_backup_dir}/${dirpath}/${file_presuffix}
+			else
+				outfile=${g_backup_dir}/${dirpath}/"${file_presuffix}.__${file_suffix}"
+			fi
+			
+			if [ ${outfile} -ot ${file} ]; then   #备份文件比当前文件要老， 或者备份文件不存在
+				cat ${file} > ${outfile}
+				echo "cat ${file} > ${outfile}"
+			fi
 		fi
 	done
 }
@@ -129,11 +160,9 @@ function main()
 		echo "not find any files"
 		exit ;
 	fi	
-	
-	fextra_suffix "${g_all_files}" "h"
-	fextra_suffix "${g_all_files}" "cpp"
+
 		
-	fcopy_target "${g_all_need_backup_files}"
+	fcopy_target "${g_all_files}"
 	
 	fgeneration_script_to_backup_dir
 }
